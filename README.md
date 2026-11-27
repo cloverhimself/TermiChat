@@ -20,17 +20,21 @@ npm run chat
 
 Choose a different username in each client, then type messages. Use /quit to leave.
 
+## Local history
+
+Type `/history` to display the last 20 saved entries for the current server. Messages and presence notices are appended to a plaintext log under `~/.termichat/`. Clients on the same computer using the same OS account and server address share this log, so duplicate entries are possible. Different computers keep separate copies. Only received messages are saved; missed messages are not synchronized yet.
+
 ## Local Wi-Fi
 
 On the host, run `HOST=0.0.0.0 npm run server` (macOS/Linux). On another device with this repository, run `npm run chat -- HOST_IP 5050`, replacing HOST_IP with the host's LAN address. Allow TCP port 5050 through the host firewall only on a trusted private network.
 
 ## Limitations
 
-Prototype only. Messages are plaintext, usernames are not authenticated, and no history is saved. Do not expose the server to the internet or use it for sensitive information.
+Prototype only. Messages are plaintext, usernames are not authenticated, and local history is stored unencrypted. Do not expose the server to the internet or use it for sensitive information.
 
 ## Roadmap
 
-- Local chat history
+- [x] Local chat history
 - Rooms and private messages
 - Secure online messaging
 - Synchronization
