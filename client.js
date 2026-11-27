@@ -29,7 +29,7 @@ function showHistory() {
     if (!historyEnabled || !fs.existsSync(historyFile)) return console.log('No local history yet.');
     const lines = fs.readFileSync(historyFile, 'utf8').trimEnd().split('\n').slice(-20);
     console.log('\n--- Local history (last 20 entries) ---');
-    console.log(lines.join('\n'));
+    console.log(lines.map(line => line.replace(/^(\S+ )(.*)$/, (_, timestamp, message) => timestamp + formatMessage(message))).join('\n'));
     console.log('--- End of history ---\n');
   } catch (error) {
     console.error('Could not read history: ' + error.message);
@@ -37,13 +37,28 @@ function showHistory() {
 }
 const socket = net.createConnection({ host, port });
 const input = readline.createInterface({ input: process.stdin, output: process.stdout });
+socket.setEncoding('utf8');
 const messages = readline.createInterface({ input: socket, crlfDelay: Infinity });
 
 socket.on('connect', () => console.log('Connected to TermiChat. Type /history for local history or /quit to leave.'));
+const useColor = process.stdout.isTTY && !('NO_COLOR' in process.env) && process.env.TERM !== 'dumb';
+const palette = [31, 32, 33, 34, 35, 36, 91, 92, 93, 94, 95, 96];
+function colorName(name) {
+  if (!useColor) return name;
+  let hash = 0;
+  for (const ch of name.toLowerCase()) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  return '\x1b[' + palette[hash % palette.length] + 'm' + name + '\x1b[0m';
+}
+function formatMessage(line) {
+  const room = line.match(/^(\[#[\w-]+\] )([\w-]+)(: | (?:joined|left) the chat\.$)(.*)$/u);
+  if (room) return room[1] + colorName(room[2]) + room[3] + room[4];
+  const dm = line.match(/^\[DM ([\w-]+) -> ([\w-]+)\] (.*)$/u);
+  if (dm) return '[DM ' + colorName(dm[1]) + ' -> ' + colorName(dm[2]) + '] ' + dm[3];
+  return line;
+}
 messages.on('line', line => {
-  console.log(line);
-  // Only chat messages and presence notices belong in the history.
-  if (/^[a-zA-Z0-9_-]{1,24}(?:: | (?:joined|left) the chat\.$)/.test(line)) saveMessage(line);
+  console.log(formatMessage(line));
+  if (/^(?:\[#[\w-]+\] [\w-]+(?:: | (?:joined|left) the chat\.$)|\[DM [\w-]+ -> [\w-]+\] |[\w-]+(?:: | (?:joined|left) the chat\.$))/.test(line)) saveMessage(line);
 });
 input.on('line', line => {
   if (line === '/history') return showHistory();
