@@ -30,7 +30,7 @@ Choose a different username in each client, then type messages. Use /quit to lea
 - `/help`: list commands.
 - `/quit`: disconnect.
 
-Emoji and Unicode messages are supported by UTF-8. Username colours are assigned consistently from a terminal colour palette (collisions are possible). Set NO_COLOR=1 to disable colours. Update both server and clients together. Private messages are routed only to sender and recipient, but are not encrypted.
+Emoji and Unicode messages are supported by UTF-8. Username colours are assigned by the server in join order: blue, yellow, red, pink, green, cyan, purple, white, then shades. Active users get distinct palette slots until the palette is exhausted. Set NO_COLOR=1 to disable colours. Update both server and clients together. Private messages are routed only to sender and recipient, but are not encrypted.
 
 ## Local history
 
@@ -38,7 +38,7 @@ Type `/history` to display the last 20 saved entries for the current server. Mes
 
 ## Local Wi-Fi
 
-On the host, run `HOST=0.0.0.0 npm run server` (macOS/Linux). On another device with this repository, run `npm run chat -- HOST_IP 5050`, replacing HOST_IP with the host's LAN address. Allow TCP port 5050 through the host firewall only on a trusted private network.
+On the host, run `npm run server:lan` (macOS, Linux or Windows). On another device run `npm run discover` and select a discovered server. Discovery uses IPv4 UDP port 5051 and works only when the network permits local broadcasts; manual connection remains available. Discovered servers are not authenticated, so select only a trusted host. On another device with this repository, run `npm run chat -- HOST_IP 5050`, replacing HOST_IP with the host's LAN address. Allow TCP port 5050 and UDP port 5051 through the host firewall only on a trusted private network.
 
 ## Limitations
 
@@ -49,6 +49,7 @@ Prototype only. Messages are plaintext, usernames are not authenticated, and loc
 - [x] Local chat history
 - [x] Rooms and private messages
 - [x] Emoji and username colours
+- [x] LAN server discovery
 - Secure online messaging
 - Synchronization
 - npm distribution
