@@ -42,12 +42,12 @@ const messages = readline.createInterface({ input: socket, crlfDelay: Infinity }
 
 socket.on('connect', () => console.log('Connected to TermiChat. Type /history for local history or /quit to leave.'));
 const useColor = process.stdout.isTTY && !('NO_COLOR' in process.env) && process.env.TERM !== 'dumb';
-const palette = [31, 32, 33, 34, 35, 36, 91, 92, 93, 94, 95, 96];
+const palette = [34, 33, 31, 95, 32, 36, 35, 37, 94, 93, 91, 92, 96, 90];
+const colors = new Map();
 function colorName(name) {
   if (!useColor) return name;
-  let hash = 0;
-  for (const ch of name.toLowerCase()) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
-  return '\x1b[' + palette[hash % palette.length] + 'm' + name + '\x1b[0m';
+  const color = colors.get(name.toLowerCase());
+  return color ? '\x1b[' + color + 'm' + name + '\x1b[0m' : name;
 }
 function formatMessage(line) {
   const room = line.match(/^(\[#[\w-]+\] )([\w-]+)(: | (?:joined|left) the chat\.$)(.*)$/u);
@@ -57,6 +57,11 @@ function formatMessage(line) {
   return line;
 }
 messages.on('line', line => {
+  const assignment = line.match(/^@color ([a-zA-Z0-9_-]{1,24}) (\d{2})$/);
+  if (assignment && palette.includes(Number(assignment[2]))) {
+    colors.set(assignment[1].toLowerCase(), Number(assignment[2]));
+    return;
+  }
   console.log(formatMessage(line));
   if (/^(?:\[#[\w-]+\] [\w-]+(?:: | (?:joined|left) the chat\.$)|\[DM [\w-]+ -> [\w-]+\] |[\w-]+(?:: | (?:joined|left) the chat\.$))/.test(line)) saveMessage(line);
 });
