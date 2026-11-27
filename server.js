@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const crypto = require('node:crypto');
 const secure = process.env.TERMICHAT_TLS === '1';
 const secret = process.env.TERMICHAT_TOKEN;
-if (secure && (!secret || secret.length < 24)) throw new Error('Online mode requires TERMICHAT_TOKEN of at least 24 characters.');
+if (secure && (!secret || secret.length < 24 || secret.length > 256 || /\s/.test(secret))) throw new Error('Online mode requires TERMICHAT_TOKEN of at least 24 characters.');
 const roomHistory = new Map();
 function matchesToken(value) {
   const digest = text => crypto.createHash('sha256').update(text).digest();
@@ -23,7 +23,6 @@ function remember(room, line) {
 function replay(socket, room) {
   for (const entry of roomHistory.get(room) || []) send(socket, '@message ' + JSON.stringify(entry));
 }
-const readline = require('node:readline');
 const host = process.env.HOST || '127.0.0.1';
 const port = Number(process.env.PORT || 5050);
 const clients = new Map();
@@ -37,7 +36,10 @@ function announceColors(socket) {
 }
 const validName = /^[a-zA-Z0-9_-]{1,24}$/;
 function send(socket, message) {
-  if (!socket.destroyed && socket.writable) socket.write(message + '\n');
+  if (!socket.destroyed && socket.writable) {
+    if (socket.writableLength > 262144) return socket.destroy();
+    socket.write(message + '\n');
+  }
 }
 function broadcast(room, message) {
   for (const [socket, user] of clients) if (user.room === room) send(socket, message);
@@ -48,14 +50,9 @@ function handleConnection(socket) {
   let authenticated = !secure;
   const authTimer = setTimeout(() => { if (!clients.has(socket)) socket.destroy(); }, 30000);
   let pending = '';
-  socket.on('data', chunk => {
-    pending = (pending + chunk).split('\n').pop();
-    if (pending.length > 4096) socket.destroy();
-  });
   socket.setEncoding('utf8');
-  const lines = readline.createInterface({ input: socket, crlfDelay: Infinity });
   send(socket, secure ? '@auth' : 'Enter your username:');
-  lines.on('line', line => {
+  function onLine(line) {
     const value = line.trim();
     if (!value) return;
     if (!authenticated) {
@@ -81,7 +78,7 @@ function handleConnection(socket) {
       return send(socket, 'Type /help for commands.');
     }
     const [command, ...args] = value.split(/\s+/);
-    if (command === '/help') return send(socket, '/join ROOM | /rooms | /users | /dm USER MESSAGE | /history | /quit');
+    if (command === '/help') return send(socket, '/join ROOM | /rooms | /users | /dm USER MESSAGE | /history | /clear | /quit');
     if (command === '/rooms') return send(socket, 'Rooms: ' + [...new Set(['lobby', ...[...clients.values()].map(u => u.room)])].join(', '));
     if (command === '/users') return send(socket, 'Online in #' + user.room + ': ' + [...clients.values()].filter(u => u.room === user.room).map(u => u.name).join(', '));
     if (command === '/join') {
@@ -106,12 +103,23 @@ function handleConnection(socket) {
     if (value.startsWith('/')) return send(socket, 'Unknown command. Type /help.');
     const entry = remember(user.room, '[#' + user.room + '] ' + user.name + ': ' + value);
     broadcast(user.room, '@message ' + JSON.stringify(entry));
+  }
+  socket.on('data', chunk => {
+    pending += chunk;
+    let end;
+    while ((end = pending.indexOf('\n')) !== -1) {
+      if (end > 4096) return socket.destroy();
+      const line = pending.slice(0, end);
+      pending = pending.slice(end + 1);
+      onLine(line);
+      if (socket.destroyed || !socket.writable) return;
+    }
+    if (pending.length > 4096) socket.destroy();
   });
   socket.on('error', () => socket.destroy());
   socket.on('close', () => {
     clearTimeout(authTimer);
     server.connectionsCount--;
-    lines.close();
     const user = clients.get(socket);
     clients.delete(socket);
     if (user) broadcast(user.room, '[#' + user.room + '] ' + user.name + ' left the chat.');
