@@ -136,6 +136,11 @@ server.on('tlsClientError', () => {});
 server.on('error', error => { console.error(error.message); process.exitCode = 1; });
 server.listen(port, host, () => {
   console.log('TermiChat listening on ' + host + ':' + server.address().port);
+  if (secure && process.env.TERMICHAT_INVITE) {
+    console.log('Share this private invite with trusted participants:');
+    console.log(process.env.TERMICHAT_INVITE);
+    console.log('Host stays online until you stop this process.');
+  }
   if (!secure && host === '0.0.0.0') {
     const { advertise } = require('./discovery');
     const discovery = advertise(server.address().port);
