@@ -1,4 +1,28 @@
 const net = require('node:net');
+const tls = require('node:tls');
+const fs = require('node:fs');
+const crypto = require('node:crypto');
+const secure = process.env.TERMICHAT_TLS === '1';
+const secret = process.env.TERMICHAT_TOKEN;
+if (secure && (!secret || secret.length < 24)) throw new Error('Online mode requires TERMICHAT_TOKEN of at least 24 characters.');
+const roomHistory = new Map();
+function matchesToken(value) {
+  const digest = text => crypto.createHash('sha256').update(text).digest();
+  return crypto.timingSafeEqual(digest(value), digest(secret));
+}
+function remember(room, line) {
+  if (!roomHistory.has(room)) {
+    if (roomHistory.size >= 100) roomHistory.delete(roomHistory.keys().next().value);
+    roomHistory.set(room, []);
+  }
+  const entries = roomHistory.get(room);
+  entries.push({ id: crypto.randomUUID(), line, time: new Date().toISOString() });
+  if (entries.length > 100) entries.shift();
+  return entries[entries.length - 1];
+}
+function replay(socket, room) {
+  for (const entry of roomHistory.get(room) || []) send(socket, '@message ' + JSON.stringify(entry));
+}
 const readline = require('node:readline');
 const host = process.env.HOST || '127.0.0.1';
 const port = Number(process.env.PORT || 5050);
@@ -18,13 +42,27 @@ function send(socket, message) {
 function broadcast(room, message) {
   for (const [socket, user] of clients) if (user.room === room) send(socket, message);
 }
-const server = net.createServer(socket => {
+function handleConnection(socket) {
+  if (server.connectionsCount >= 100) return socket.destroy();
+  server.connectionsCount = (server.connectionsCount || 0) + 1;
+  let authenticated = !secure;
+  const authTimer = setTimeout(() => { if (!clients.has(socket)) socket.destroy(); }, 30000);
+  let pending = '';
+  socket.on('data', chunk => {
+    pending = (pending + chunk).split('\n').pop();
+    if (pending.length > 4096) socket.destroy();
+  });
   socket.setEncoding('utf8');
   const lines = readline.createInterface({ input: socket, crlfDelay: Infinity });
-  send(socket, 'Enter your username:');
+  send(socket, secure ? '@auth' : 'Enter your username:');
   lines.on('line', line => {
     const value = line.trim();
     if (!value) return;
+    if (!authenticated) {
+      if (!matchesToken(value)) { send(socket, 'Access denied.'); return socket.end(); }
+      authenticated = true;
+      return send(socket, 'Enter your username:');
+    }
     if (value === '/quit') return socket.end();
     if (value.length > 2000 || /[\x00-\x1f\x7f-\x9f]/.test(value)) {
       return send(socket, 'Invalid message. Use plain text up to 2000 characters.');
@@ -35,7 +73,9 @@ const server = net.createServer(socket => {
         return send(socket, 'Choose a unique username (1-24 letters, numbers, _ or -):');
       }
       clients.set(socket, { name: value, room: 'lobby', color: assignColor() });
+      clearTimeout(authTimer);
       announceColors(socket);
+      replay(socket, 'lobby');
       for (const other of clients.keys()) if (other !== socket) send(other, '@color ' + value + ' ' + clients.get(socket).color);
       broadcast('lobby', '[#lobby] ' + value + ' joined the chat.');
       return send(socket, 'Type /help for commands.');
@@ -50,6 +90,7 @@ const server = net.createServer(socket => {
       if (room === user.room) return send(socket, 'Already in #' + room);
       broadcast(user.room, '[#' + user.room + '] ' + user.name + ' left the chat.');
       user.room = room;
+      replay(socket, room);
       return broadcast(room, '[#' + room + '] ' + user.name + ' joined the chat.');
     }
     if (command === '/dm') {
@@ -63,20 +104,31 @@ const server = net.createServer(socket => {
       return;
     }
     if (value.startsWith('/')) return send(socket, 'Unknown command. Type /help.');
-    broadcast(user.room, '[#' + user.room + '] ' + user.name + ': ' + value);
+    const entry = remember(user.room, '[#' + user.room + '] ' + user.name + ': ' + value);
+    broadcast(user.room, '@message ' + JSON.stringify(entry));
   });
   socket.on('error', () => socket.destroy());
   socket.on('close', () => {
+    clearTimeout(authTimer);
+    server.connectionsCount--;
     lines.close();
     const user = clients.get(socket);
     clients.delete(socket);
     if (user) broadcast(user.room, '[#' + user.room + '] ' + user.name + ' left the chat.');
   });
-});
+ }
+const server = secure ? tls.createServer({
+  key: fs.readFileSync(process.env.TERMICHAT_KEY),
+  cert: fs.readFileSync(process.env.TERMICHAT_CERT),
+  minVersion: 'TLSv1.2',
+  handshakeTimeout: 10000
+}, handleConnection) : net.createServer(handleConnection);
+server.maxConnections = 100;
+server.on('tlsClientError', () => {});
 server.on('error', error => { console.error(error.message); process.exitCode = 1; });
 server.listen(port, host, () => {
   console.log('TermiChat listening on ' + host + ':' + port);
-  if (host === '0.0.0.0') {
+  if (!secure && host === '0.0.0.0') {
     const { advertise } = require('./discovery');
     const discovery = advertise(server.address().port);
     server.on('close', () => discovery.close());
