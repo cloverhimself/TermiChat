@@ -1,0 +1,13 @@
+{
+  "name": "termichat",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Terminal chat over TCP",
+  "scripts": {
+    "server": "node server.js",
+    "chat": "node client.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
