@@ -6,11 +6,12 @@ const os = require('node:os');
 const path = require('node:path');
 
 const args = process.argv.slice(2);
-const secure = args.includes('--tls');
+const invitation = process.env.TERMICHAT_INVITE ? require('./invite').decode(process.env.TERMICHAT_INVITE) : null;
+const secure = !!invitation || args.includes('--tls');
 const positional = args.filter(arg => arg !== '--tls');
-const host = positional[0] || '127.0.0.1';
-const port = Number(positional[1] || 5050);
-const token = process.env.TERMICHAT_TOKEN;
+const host = invitation?.host || positional[0] || '127.0.0.1';
+const port = invitation?.port || Number(positional[1] || 5050);
+const token = invitation?.token || process.env.TERMICHAT_TOKEN;
 if (secure && !token) { console.error('Set TERMICHAT_TOKEN before connecting.'); process.exit(1); }
 const historyDir = path.join(os.homedir(), '.termichat');
 const historyFile = path.join(historyDir, Buffer.from((secure ? 'tls:' : '') + host + ':' + port).toString('hex') + '.log');
@@ -48,15 +49,21 @@ try {
 } catch {}
 const options = { host, port };
 if (secure) {
-  options.servername = host;
+  if (!net.isIP(host)) options.servername = host;
+  if (invitation) options.rejectUnauthorized = false;
   if (process.env.TERMICHAT_CA) options.ca = fs.readFileSync(process.env.TERMICHAT_CA);
 }
 const socket = secure ? tls.connect(options) : net.createConnection(options);
+let verified = !secure;
 const input = readline.createInterface({ input: process.stdin, output: process.stdout });
 socket.setEncoding('utf8');
 const messages = readline.createInterface({ input: socket, crlfDelay: Infinity });
 
 socket.on(secure ? 'secureConnect' : 'connect', () => {
+  if (invitation && require('./invite').fingerprint(socket.getPeerCertificate()) !== invitation.fingerprint) {
+    console.error('Host certificate does not match invite.'); socket.destroy(); return;
+  }
+  verified = true;
   console.log('\n  TERMICHAT  |  ' + (secure ? 'ONLINE / TLS' : 'LOCAL / LAN'));
   console.log('  ' + host + ':' + port + '  |  /help  /history  /quit\n');
 });
@@ -78,7 +85,7 @@ function formatMessage(line) {
 }
 messages.on('line', line => {
   if (line === '@auth') {
-    if (!secure) { console.error('Refusing to send token over plaintext.'); return socket.destroy(); }
+    if (!secure || !verified) { console.error('Refusing to send token over plaintext.'); return socket.destroy(); }
     return socket.write(token + '\n');
   }
   if (line.startsWith('@message ')) {
@@ -102,6 +109,7 @@ messages.on('line', line => {
   if (/^(?:\[#[\w-]+\] [\w-]+(?:: | (?:joined|left) the chat\.$)|\[DM [\w-]+ -> [\w-]+\] |[\w-]+(?:: | (?:joined|left) the chat\.$))/.test(line)) saveMessage(line.replace(/[\x00-\x1f\x7f-\x9f]/g, ''));
 });
 input.on('line', line => {
+  if (!verified) return;
   if (line === '/history') return showHistory();
   if (line === '/clear') return console.clear();
   if (line === '/quit') {
