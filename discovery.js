@@ -53,7 +53,7 @@ function discover() {
   });
 }
 async function main() {
-  console.log('Looking for TermiChat servers on your local network...');
+  console.log('Looking for KLVRChat servers on your local network...');
   const servers = await discover();
   if (!servers.length) {
     console.log('No servers found. Start a LAN server or connect manually: npm run chat -- HOST_IP 5050');
