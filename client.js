@@ -83,7 +83,14 @@ function formatMessage(line) {
   if (dm) return '[DM ' + colorName(dm[1]) + ' -> ' + colorName(dm[2]) + '] ' + dm[3];
   return line;
 }
+let savedNameUsed = false;
 messages.on('line', line => {
+  if (line === 'Enter your username:' && verified && !savedNameUsed && process.env.KLVRCHAT_USERNAME) {
+    savedNameUsed = true;
+    console.log('Using saved username: ' + process.env.KLVRCHAT_USERNAME);
+    socket.write(process.env.KLVRCHAT_USERNAME + '\n');
+    return;
+  }
   if (line === '@auth') {
     if (!secure || !verified) { console.error('Refusing to send token over plaintext.'); return socket.destroy(); }
     return socket.write(token + '\n');
