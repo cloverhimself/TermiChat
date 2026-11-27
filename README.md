@@ -43,6 +43,10 @@ Type `/history` to display the last 20 saved entries for the current server. Mes
 
 On the host, run `npm run server:lan` (macOS, Linux or Windows). On another device run `npm run discover` and select a discovered server. Discovery uses IPv4 UDP port 5051 and works only when the network permits local broadcasts; manual connection remains available. Discovered servers are not authenticated, so select only a trusted host. On another device with this repository, run `npm run chat -- HOST_IP 5050`, replacing HOST_IP with the host's LAN address. Allow TCP port 5050 and UDP port 5051 through the host firewall only on a trusted private network.
 
+## Configure once
+
+Run `klvrchat setup` to save username, network method and port in `~/.termichat/settings.json`. Then run `klvrchat host --online` or select menu option 6. Auto mode prefers Tailscale and falls back to a LAN IPv4 address; it does not claim internet reachability. Choose public mode to look up your external IPv4 through api.ipify.org (requires internet and sends your IP to that service), or manual mode to save a reachable address. Public hosting still needs port forwarding and firewall access. The selected port must be free. OpenSSL remains required on the host. Settings are local and do not store invite secrets.
+
 ## Self-hosted online rooms (experimental)
 
 No paid hosting is required. The host runs KLVRChat on their own machine. For connections across networks, use a reachable public IP with TCP port forwarding, or a private overlay network such as Tailscale (both participants must have access). KLVRChat does not implement automatic NAT traversal.
