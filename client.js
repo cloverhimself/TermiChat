@@ -64,7 +64,7 @@ socket.on(secure ? 'secureConnect' : 'connect', () => {
     console.error('Host certificate does not match invite.'); socket.destroy(); return;
   }
   verified = true;
-  console.log('\n  TERMICHAT  |  ' + (secure ? 'ONLINE / TLS' : 'LOCAL / LAN'));
+  console.log('\n  KLVRCHAT  |  ' + (secure ? 'ONLINE / TLS' : 'LOCAL / LAN'));
   console.log('  ' + host + ':' + port + '  |  /help  /history  /quit\n');
 });
 const useColor = process.stdout.isTTY && !('NO_COLOR' in process.env) && process.env.TERM !== 'dumb';
