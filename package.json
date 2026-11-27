@@ -1,11 +1,13 @@
 {
   "name": "termichat",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Terminal chat over TCP",
   "scripts": {
     "server": "node server.js",
-    "chat": "node client.js"
+    "chat": "node client.js",
+    "discover": "node discovery.js",
+    "server:lan": "node -e \"process.env.HOST='0.0.0.0';require('./server')\""
   },
   "engines": {
     "node": ">=18"
