@@ -1,5 +1,5 @@
 {
-  "name": "termichat",
+  "name": "klvrchat",
   "version": "0.4.0",
   "description": "Terminal chat over TCP",
   "scripts": {
@@ -16,7 +16,7 @@
     "node": ">=18"
   },
   "bin": {
-    "termichat": "cli.js"
+    "klvrchat": "cli.js"
   },
   "files": [
     "cli.js",
