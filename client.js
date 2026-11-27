@@ -1,13 +1,19 @@
 const net = require('node:net');
+const tls = require('node:tls');
 const readline = require('node:readline');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const host = process.argv[2] || '127.0.0.1';
-const port = Number(process.argv[3] || 5050);
+const args = process.argv.slice(2);
+const secure = args.includes('--tls');
+const positional = args.filter(arg => arg !== '--tls');
+const host = positional[0] || '127.0.0.1';
+const port = Number(positional[1] || 5050);
+const token = process.env.TERMICHAT_TOKEN;
+if (secure && !token) { console.error('Set TERMICHAT_TOKEN before connecting.'); process.exit(1); }
 const historyDir = path.join(os.homedir(), '.termichat');
-const historyFile = path.join(historyDir, Buffer.from(host + ':' + port).toString('hex') + '.log');
+const historyFile = path.join(historyDir, Buffer.from((secure ? 'tls:' : '') + host + ':' + port).toString('hex') + '.log');
 let historyEnabled = true;
 try {
   fs.mkdirSync(historyDir, { recursive: true, mode: 0o700 });
@@ -35,12 +41,25 @@ function showHistory() {
     console.error('Could not read history: ' + error.message);
   }
 }
-const socket = net.createConnection({ host, port });
+const seenFile = historyFile + '.ids';
+const seen = new Set();
+try {
+  if (fs.existsSync(seenFile)) for (const id of fs.readFileSync(seenFile, 'utf8').split('\n')) if (id) seen.add(id);
+} catch {}
+const options = { host, port };
+if (secure) {
+  options.servername = host;
+  if (process.env.TERMICHAT_CA) options.ca = fs.readFileSync(process.env.TERMICHAT_CA);
+}
+const socket = secure ? tls.connect(options) : net.createConnection(options);
 const input = readline.createInterface({ input: process.stdin, output: process.stdout });
 socket.setEncoding('utf8');
 const messages = readline.createInterface({ input: socket, crlfDelay: Infinity });
 
-socket.on('connect', () => console.log('Connected to TermiChat. Type /history for local history or /quit to leave.'));
+socket.on(secure ? 'secureConnect' : 'connect', () => {
+  console.log('\n  TERMICHAT  |  ' + (secure ? 'ONLINE / TLS' : 'LOCAL / LAN'));
+  console.log('  ' + host + ':' + port + '  |  /help  /history  /quit\n');
+});
 const useColor = process.stdout.isTTY && !('NO_COLOR' in process.env) && process.env.TERM !== 'dumb';
 const palette = [34, 33, 31, 95, 32, 36, 35, 37, 94, 93, 91, 92, 96, 90];
 const colors = new Map();
@@ -57,16 +76,33 @@ function formatMessage(line) {
   return line;
 }
 messages.on('line', line => {
+  if (line === '@auth') {
+    if (!secure) { console.error('Refusing to send token over plaintext.'); return socket.destroy(); }
+    return socket.write(token + '\n');
+  }
+  if (line.startsWith('@message ')) {
+    try {
+      const entry = JSON.parse(line.slice(9));
+      if (!/^[a-f0-9-]{36}$/.test(entry.id) || typeof entry.line !== 'string' || /[\x00-\x1f\x7f-\x9f]/.test(entry.line)) return;
+      if (seen.has(entry.id)) return;
+      seen.add(entry.id);
+      console.log('[' + new Date(entry.time).toLocaleTimeString() + '] ' + formatMessage(entry.line));
+      saveMessage(entry.line);
+      if (historyEnabled) fs.appendFileSync(seenFile, entry.id + '\n', { mode: 0o600 });
+    } catch (error) { console.error('Message/history error: ' + error.message); }
+    return;
+  }
   const assignment = line.match(/^@color ([a-zA-Z0-9_-]{1,24}) (\d{2})$/);
   if (assignment && palette.includes(Number(assignment[2]))) {
     colors.set(assignment[1].toLowerCase(), Number(assignment[2]));
     return;
   }
-  console.log(formatMessage(line));
+  console.log(formatMessage(line.replace(/[\x00-\x1f\x7f-\x9f]/g, '')));
   if (/^(?:\[#[\w-]+\] [\w-]+(?:: | (?:joined|left) the chat\.$)|\[DM [\w-]+ -> [\w-]+\] |[\w-]+(?:: | (?:joined|left) the chat\.$))/.test(line)) saveMessage(line);
 });
 input.on('line', line => {
   if (line === '/history') return showHistory();
+  if (line === '/clear') return console.clear();
   if (line === '/quit') {
     socket.end('/quit\n');
     input.close();
