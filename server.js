@@ -3,6 +3,14 @@ const readline = require('node:readline');
 const host = process.env.HOST || '127.0.0.1';
 const port = Number(process.env.PORT || 5050);
 const clients = new Map();
+const palette = [34, 33, 31, 95, 32, 36, 35, 37, 94, 93, 91, 92, 96, 90];
+function assignColor() {
+  const used = new Set([...clients.values()].map(u => u.color));
+  return palette.find(color => !used.has(color)) ?? palette[clients.size % palette.length];
+}
+function announceColors(socket) {
+  for (const user of clients.values()) send(socket, '@color ' + user.name + ' ' + user.color);
+}
 const validName = /^[a-zA-Z0-9_-]{1,24}$/;
 function send(socket, message) {
   if (!socket.destroyed && socket.writable) socket.write(message + '\n');
@@ -26,7 +34,9 @@ const server = net.createServer(socket => {
       if (!validName.test(value) || [...clients.values()].some(u => u.name.toLowerCase() === value.toLowerCase())) {
         return send(socket, 'Choose a unique username (1-24 letters, numbers, _ or -):');
       }
-      clients.set(socket, { name: value, room: 'lobby' });
+      clients.set(socket, { name: value, room: 'lobby', color: assignColor() });
+      announceColors(socket);
+      for (const other of clients.keys()) if (other !== socket) send(other, '@color ' + value + ' ' + clients.get(socket).color);
       broadcast('lobby', '[#lobby] ' + value + ' joined the chat.');
       return send(socket, 'Type /help for commands.');
     }
@@ -64,4 +74,11 @@ const server = net.createServer(socket => {
   });
 });
 server.on('error', error => { console.error(error.message); process.exitCode = 1; });
-server.listen(port, host, () => console.log('TermiChat listening on ' + host + ':' + port));
+server.listen(port, host, () => {
+  console.log('TermiChat listening on ' + host + ':' + port);
+  if (host === '0.0.0.0') {
+    const { advertise } = require('./discovery');
+    const discovery = advertise(server.address().port);
+    server.on('close', () => discovery.close());
+  }
+});
