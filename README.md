@@ -1,8 +1,8 @@
-# TermiChat
+# KLVRChat
 
 A dependency-free Node.js terminal chat prototype.
 
-Run `npm start` for the interactive menu, or `npm link` to install the local `termichat` command. The package is prepared for public npm publication after release verification.
+Run `npm start` for the interactive menu, or `npm link` to install the local `klvrchat` command. The package is prepared for public npm publication after release verification.
 
 ## Getting started
 
@@ -45,15 +45,15 @@ On the host, run `npm run server:lan` (macOS, Linux or Windows). On another devi
 
 ## Self-hosted online rooms (experimental)
 
-No paid hosting is required. The host runs TermiChat on their own machine. For connections across networks, use a reachable public IP with TCP port forwarding, or a private overlay network such as Tailscale (both participants must have access). TermiChat does not implement automatic NAT traversal.
+No paid hosting is required. The host runs KLVRChat on their own machine. For connections across networks, use a reachable public IP with TCP port forwarding, or a private overlay network such as Tailscale (both participants must have access). KLVRChat does not implement automatic NAT traversal.
 
 Install OpenSSL on the host, then run:
 
 ```sh
-termichat share REACHABLE_IP 5050
+klvrchat share REACHABLE_IP 5050
 ```
 
-Share the generated TC1 invite privately. Guests run `termichat` and select option 7 to paste it, or use `termichat join INVITE` (the latter may expose the invite in shell history). The host can join using the same invite in another terminal. The invite includes a random shared secret and the TLS certificate fingerprint; keep it secret and verify it came from the host. A new hosting session generates a new invite. Stop the host process to close the session. Certificate pinning authenticates the host before the client sends its secret. This is not end-to-end encryption or individual identity verification.
+Share the generated TC1 invite privately. Guests run `klvrchat` and select option 7 to paste it, or use `klvrchat join INVITE` (the latter may expose the invite in shell history). The host can join using the same invite in another terminal. The invite includes a random shared secret and the TLS certificate fingerprint; keep it secret and verify it came from the host. A new hosting session generates a new invite. Stop the host process to close the session. Certificate pinning authenticates the host before the client sends its secret. This is not end-to-end encryption or individual identity verification.
 
 ## Online mode (manual TLS configuration)
 
