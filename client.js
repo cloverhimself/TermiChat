@@ -69,6 +69,7 @@ function colorName(name) {
   return color ? '\x1b[' + color + 'm' + name + '\x1b[0m' : name;
 }
 function formatMessage(line) {
+  line = line.replace(/[\x00-\x1f\x7f-\x9f]/g, '');
   const room = line.match(/^(\[#[\w-]+\] )([\w-]+)(: | (?:joined|left) the chat\.$)(.*)$/u);
   if (room) return room[1] + colorName(room[2]) + room[3] + room[4];
   const dm = line.match(/^\[DM ([\w-]+) -> ([\w-]+)\] (.*)$/u);
@@ -98,7 +99,7 @@ messages.on('line', line => {
     return;
   }
   console.log(formatMessage(line.replace(/[\x00-\x1f\x7f-\x9f]/g, '')));
-  if (/^(?:\[#[\w-]+\] [\w-]+(?:: | (?:joined|left) the chat\.$)|\[DM [\w-]+ -> [\w-]+\] |[\w-]+(?:: | (?:joined|left) the chat\.$))/.test(line)) saveMessage(line);
+  if (/^(?:\[#[\w-]+\] [\w-]+(?:: | (?:joined|left) the chat\.$)|\[DM [\w-]+ -> [\w-]+\] |[\w-]+(?:: | (?:joined|left) the chat\.$))/.test(line)) saveMessage(line.replace(/[\x00-\x1f\x7f-\x9f]/g, ''));
 });
 input.on('line', line => {
   if (line === '/history') return showHistory();
