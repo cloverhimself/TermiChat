@@ -2,7 +2,7 @@
 
 A dependency-free Node.js terminal chat prototype.
 
-Run `npm start` for the interactive menu, or `npm link` to install the local `termichat` command. The package is intentionally private until release verification.
+Run `npm start` for the interactive menu, or `npm link` to install the local `termichat` command. The package is prepared for public npm publication after release verification.
 
 ## Getting started
 
@@ -43,7 +43,19 @@ Type `/history` to display the last 20 saved entries for the current server. Mes
 
 On the host, run `npm run server:lan` (macOS, Linux or Windows). On another device run `npm run discover` and select a discovered server. Discovery uses IPv4 UDP port 5051 and works only when the network permits local broadcasts; manual connection remains available. Discovered servers are not authenticated, so select only a trusted host. On another device with this repository, run `npm run chat -- HOST_IP 5050`, replacing HOST_IP with the host's LAN address. Allow TCP port 5050 and UDP port 5051 through the host firewall only on a trusted private network.
 
-## Online mode (experimental)
+## Self-hosted online rooms (experimental)
+
+No paid hosting is required. The host runs TermiChat on their own machine. For connections across networks, use a reachable public IP with TCP port forwarding, or a private overlay network such as Tailscale (both participants must have access). TermiChat does not implement automatic NAT traversal.
+
+Install OpenSSL on the host, then run:
+
+```sh
+termichat share REACHABLE_IP 5050
+```
+
+Share the generated TC1 invite privately. Guests run `termichat` and select option 7 to paste it, or use `termichat join INVITE` (the latter may expose the invite in shell history). The host can join using the same invite in another terminal. The invite includes a random shared secret and the TLS certificate fingerprint; keep it secret and verify it came from the host. A new hosting session generates a new invite. Stop the host process to close the session. Certificate pinning authenticates the host before the client sends its secret. This is not end-to-end encryption or individual identity verification.
+
+## Online mode (manual TLS configuration)
 
 Use a host with a reachable TCP port, a DNS hostname and a valid TLS certificate and key. Do not commit credentials or certificates' private keys. Configure these environment variables on the server:
 
@@ -67,4 +79,5 @@ Prototype only. Messages are plaintext, usernames are not authenticated, and loc
 - [x] Experimental TLS online mode
 - [x] Bounded room replay
 - [x] Local CLI packaging
-- Individual accounts, durable synchronization, production security testing and npm publication
+- [x] Self-hosted online invites
+- Individual accounts, durable synchronization, automatic NAT traversal, production security testing and npm publication
